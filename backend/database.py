@@ -159,6 +159,17 @@ class DatabaseOperations:
         finally:
             db.close()
     
+    def get_resolved_alerts(self, limit: int = 50) -> List[Alert]:
+        """Get resolved alerts"""
+        db = self.db_manager.get_session()
+        try:
+            alerts = db.query(Alert).filter(
+                Alert.resolved == True
+            ).order_by(desc(Alert.resolved_at)).limit(limit).all()
+            return alerts
+        finally:
+            db.close()
+    
     def resolve_alert(self, alert_id: int, resolved_by: str = None) -> bool:
         """Mark an alert as resolved"""
         db = self.db_manager.get_session()

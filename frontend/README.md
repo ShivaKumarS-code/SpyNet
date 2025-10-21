@@ -1,36 +1,103 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SpyNet Dashboard
+
+A modern, responsive web dashboard for the SpyNet Network Traffic Analyzer and Intrusion Detection System.
+
+## Features
+
+### 🎨 Modern UI/UX
+- **Responsive Design**: Mobile-friendly interface built with Tailwind CSS
+- **Dark/Light Mode**: Toggle between themes with system preference detection
+- **Real-time Updates**: Live data streaming via WebSocket connections
+- **Interactive Charts**: Traffic visualization using Recharts library
+
+### 📊 Dashboard Components
+- **Statistics Cards**: Real-time network metrics (packets, bytes, connections, alerts)
+- **Traffic Chart**: Live network traffic visualization with dual-axis charts
+- **Top Talkers**: Most active IP addresses with bandwidth usage
+- **Alerts Table**: Interactive security alerts with filtering and sorting
+
+### 🔍 Alert Management
+- **Advanced Filtering**: Filter alerts by severity level
+- **Search Functionality**: Search across alert types, IPs, and descriptions
+- **Sorting**: Sort by timestamp, severity, type, or source IP
+- **Severity Indicators**: Color-coded severity levels (Low, Medium, High, Critical)
+
+### 🔌 Real-time Connectivity
+- **WebSocket Integration**: Live data updates from SpyNet backend
+- **Connection Status**: Visual indicator of backend connectivity
+- **Mock Data**: Development mode with simulated data when backend is unavailable
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+- Node.js 18+ 
+- npm or yarn
 
+### Installation
+
+1. Install dependencies:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install --legacy-peer-deps
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Start the development server:
+```bash
+npm run dev
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+3. Open [http://localhost:3000](http://localhost:3000) in your browser
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Production Build
 
-## Learn More
+```bash
+npm run build
+npm start
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Architecture
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Components Structure
+```
+src/
+├── app/
+│   └── page.tsx              # Main dashboard page
+├── components/
+│   ├── AlertsTable.tsx       # Interactive alerts table
+│   ├── StatsCards.tsx        # Network statistics cards
+│   ├── TopTalkers.tsx        # Top bandwidth users
+│   └── TrafficChart.tsx      # Real-time traffic chart
+└── hooks/
+    ├── useTheme.ts           # Theme management
+    └── useWebSocket.ts       # WebSocket connection
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Key Technologies
+- **Next.js 15**: React framework with App Router
+- **TypeScript**: Type-safe development
+- **Tailwind CSS**: Utility-first styling
+- **Recharts**: Chart library for data visualization
+- **Socket.io Client**: Real-time WebSocket communication
+- **Lucide React**: Modern icon library
 
-## Deploy on Vercel
+## WebSocket API
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+The dashboard connects to the SpyNet backend via WebSocket at `ws://localhost:8000/ws` and listens for:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `traffic_update`: Real-time traffic data
+- `new_alert`: Security alert notifications  
+- `stats_update`: Network statistics updates
+- `top_talkers_update`: Bandwidth usage rankings
+
+## Development Features
+
+- **Mock Data**: Automatic fallback to simulated data when backend is unavailable
+- **Hot Reload**: Instant updates during development
+- **TypeScript**: Full type safety and IntelliSense
+- **ESLint**: Code quality and consistency
+
+## Responsive Design
+
+The dashboard is fully responsive and optimized for:
+- **Desktop**: Full-featured dashboard layout
+- **Tablet**: Adaptive grid layouts
+- **Mobile**: Stacked components with touch-friendly controls
