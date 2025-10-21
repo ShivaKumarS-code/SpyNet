@@ -15,6 +15,7 @@ from enum import Enum
 
 from packet_analyzer import PacketInfo
 from models import Alert
+from config_manager import config_manager
 
 
 class AlertSeverity(Enum):
@@ -118,10 +119,10 @@ class ThreatDetector:
     """
     
     def __init__(self, 
-                 port_scan_threshold: int = 10,
-                 ddos_threshold: int = 100,
-                 scan_time_window: int = 300,
-                 ddos_time_window: int = 60):
+                 port_scan_threshold: int = None,
+                 ddos_threshold: int = None,
+                 scan_time_window: int = None,
+                 ddos_time_window: int = None):
         """
         Initialize ThreatDetector instance.
         
@@ -131,10 +132,13 @@ class ThreatDetector:
             scan_time_window: Time window for port scan detection (seconds)
             ddos_time_window: Time window for DDoS detection (seconds)
         """
-        self.port_scan_threshold = port_scan_threshold
-        self.ddos_threshold = ddos_threshold
-        self.scan_time_window = scan_time_window
-        self.ddos_time_window = ddos_time_window
+        # Load thresholds from configuration manager if not provided
+        detection_config = config_manager.get_detection_thresholds()
+        
+        self.port_scan_threshold = port_scan_threshold or detection_config.port_scan_threshold
+        self.ddos_threshold = ddos_threshold or detection_config.ddos_threshold
+        self.scan_time_window = scan_time_window or detection_config.scan_time_window
+        self.ddos_time_window = ddos_time_window or detection_config.ddos_time_window
         
         # Tracking dictionaries
         self.port_scan_trackers: Dict[str, PortScanTracker] = {}
@@ -146,6 +150,11 @@ class ThreatDetector:
         
         # Suspicious payload patterns
         self.suspicious_patterns = self._load_suspicious_patterns()
+        
+        # Custom rules cache
+        self.custom_rules_cache = []
+        self.custom_rules_last_update = datetime.now()
+        self.custom_rules_cache_ttl = timedelta(minutes=5)  # Cache for 5 minutes
         
         # Setup logging
         self.logger = logging.getLogger(__name__)
@@ -211,6 +220,11 @@ class ThreatDetector:
             payload_alert = self.detect_suspicious_payload(packet_info)
             if payload_alert:
                 alerts.append(payload_alert)
+            
+            # Check custom rules
+            custom_alerts = self.check_custom_rules(packet_info)
+            if custom_alerts:
+                alerts.extend(custom_alerts)
             
             # Update statistics
             if alerts:
@@ -581,6 +595,134 @@ class ThreatDetector:
             })
         return summaries
     
+    def check_custom_rules(self, packet_info: PacketInfo) -> List[ThreatAlert]:
+        """
+        Check packet against custom threat detection rules.
+        
+        Args:
+            packet_info: PacketInfo object to analyze
+            
+        Returns:
+            List of ThreatAlert objects for matched custom rules
+        """
+        alerts = []
+        
+        try:
+            # Update custom rules cache if needed
+            self._update_custom_rules_cache()
+            
+            # Check each custom rule
+            for rule in self.custom_rules_cache:
+                if not rule.enabled:
+                    continue
+                
+                # Check protocol filter
+                if rule.protocol != "any" and rule.protocol.lower() != packet_info.protocol.lower():
+                    continue
+                
+                # Check port filter
+                if rule.ports and packet_info.dst_port not in rule.ports:
+                    continue
+                
+                # Get simulated payload for pattern matching
+                payload = self._simulate_payload_content(packet_info)
+                if not payload:
+                    continue
+                
+                # Check pattern match
+                if self._check_rule_pattern(rule, payload):
+                    # Check if we haven't alerted recently for this rule
+                    alert_key = f"custom_rule_{rule.name}_{packet_info.src_ip}"
+                    if self._should_generate_alert(alert_key):
+                        
+                        # Convert severity string to AlertSeverity enum
+                        severity = AlertSeverity(rule.severity)
+                        
+                        alert = ThreatAlert(
+                            alert_type=f"Custom Rule: {rule.name}",
+                            severity=severity,
+                            source_ip=packet_info.src_ip,
+                            destination_ip=packet_info.dst_ip,
+                            description=f"Custom rule '{rule.name}' triggered: {rule.description}",
+                            details={
+                                "rule_name": rule.name,
+                                "rule_description": rule.description,
+                                "pattern_type": rule.pattern_type,
+                                "matched_pattern": rule.pattern[:100],  # Truncate for storage
+                                "target_port": packet_info.dst_port,
+                                "protocol": packet_info.protocol,
+                                "payload_size": packet_info.payload_size
+                            }
+                        )
+                        
+                        self._record_alert(alert_key)
+                        alerts.append(alert)
+            
+            return alerts
+            
+        except Exception as e:
+            self.logger.error(f"Error checking custom rules: {e}")
+            return []
+    
+    def _update_custom_rules_cache(self) -> None:
+        """Update custom rules cache if TTL expired"""
+        try:
+            current_time = datetime.now()
+            if current_time - self.custom_rules_last_update > self.custom_rules_cache_ttl:
+                self.custom_rules_cache = config_manager.get_custom_rules(enabled_only=True)
+                self.custom_rules_last_update = current_time
+                self.logger.debug(f"Updated custom rules cache: {len(self.custom_rules_cache)} rules")
+        except Exception as e:
+            self.logger.error(f"Error updating custom rules cache: {e}")
+    
+    def _check_rule_pattern(self, rule, payload: str) -> bool:
+        """
+        Check if payload matches rule pattern.
+        
+        Args:
+            rule: CustomRule object
+            payload: Payload string to check
+            
+        Returns:
+            True if pattern matches, False otherwise
+        """
+        try:
+            if rule.pattern_type == "regex":
+                return bool(re.search(rule.pattern, payload, re.IGNORECASE))
+            elif rule.pattern_type == "string":
+                return rule.pattern.lower() in payload.lower()
+            elif rule.pattern_type == "bytes":
+                # For bytes pattern, convert to hex representation
+                try:
+                    pattern_bytes = bytes.fromhex(rule.pattern.replace(" ", ""))
+                    payload_bytes = payload.encode('utf-8', errors='ignore')
+                    return pattern_bytes in payload_bytes
+                except ValueError:
+                    self.logger.warning(f"Invalid bytes pattern in rule {rule.name}: {rule.pattern}")
+                    return False
+            else:
+                self.logger.warning(f"Unknown pattern type in rule {rule.name}: {rule.pattern_type}")
+                return False
+                
+        except Exception as e:
+            self.logger.error(f"Error checking pattern for rule {rule.name}: {e}")
+            return False
+    
+    def update_thresholds_from_config(self) -> None:
+        """Update detection thresholds from configuration manager"""
+        try:
+            detection_config = config_manager.get_detection_thresholds()
+            
+            self.port_scan_threshold = detection_config.port_scan_threshold
+            self.ddos_threshold = detection_config.ddos_threshold
+            self.scan_time_window = detection_config.scan_time_window
+            self.ddos_time_window = detection_config.ddos_time_window
+            
+            self.logger.info("Updated detection thresholds from configuration")
+            
+        except Exception as e:
+            self.logger.error(f"Error updating thresholds from config: {e}")
+    
     def reset_trackers(self) -> None:
         """Reset all threat trackers and statistics"""
         self.port_scan_trackers.clear()
@@ -588,6 +730,8 @@ class ThreatDetector:
         self.recent_alerts.clear()
         self.alerts_generated = 0
         self.packets_analyzed = 0
+        self.custom_rules_cache.clear()
+        self.custom_rules_last_update = datetime.now()
         self.logger.info("Threat detector trackers reset")
 
 

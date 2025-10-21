@@ -1,0 +1,38 @@
+{
+  "system": {
+    "capture_interface": "auto",
+    "packet_buffer_size": 1000,
+    "log_level": "INFO",
+    "debug": false
+  },
+  "api": {
+    "host": "0.0.0.0",
+    "port": 8000,
+    "enable_cors": true
+  },
+  "detection": {
+    "port_scan_threshold": 10,
+    "ddos_threshold": 100,
+    "anomaly_contamination": 0.1,
+    "connection_timeout": 300
+  },
+  "alerts": {
+    "enable_email": true,
+    "critical_only": false,
+    "dedup_window_minutes": 10,
+    "smtp_server": "smtp.gmail.com",
+    "smtp_port": 587,
+    "smtp_username": "",
+    "smtp_password": "",
+    "alert_emails": ["admin@localhost"]
+  },
+  "database": {
+    "cleanup_days": 30,
+    "connection_pool_size": 20
+  },
+  "performance": {
+    "max_connections_tracked": 10000,
+    "stats_update_interval": 30,
+    "anomaly_model_retrain_hours": 24
+  }
+}

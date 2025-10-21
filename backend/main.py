@@ -18,6 +18,7 @@ from api_models import (
     TrafficStatsResponse, AlertResponse, TopTalkersResponse, 
     ConnectionResponse, AlertCreateRequest, AlertResolveRequest
 )
+from config_api import get_config_router
 
 # Configure logging
 logging.basicConfig(level=getattr(logging, settings.log_level.upper()))
@@ -41,6 +42,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include configuration API router
+app.include_router(get_config_router())
 
 # WebSocket connection manager
 class ConnectionManager:
@@ -285,15 +289,24 @@ async def get_system_status():
     Returns comprehensive system health and performance metrics.
     """
     try:
-        # Get basic stats
+        # Get basic stats from database
         stats_24h = db_ops.get_traffic_stats(hours=24)
         stats_1h = db_ops.get_traffic_stats(hours=1)
         unresolved_alerts = db_ops.get_unresolved_alerts()
         active_connections = db_ops.get_active_connections(limit=1000)
         
+        # Get SpyNet core system status if available
+        spynet_status = {}
+        if spynet_app:
+            try:
+                spynet_status = spynet_app.get_status()
+            except Exception as e:
+                logger.warning(f"Could not get SpyNet core status: {e}")
+        
         return {
-            "status": "operational",
+            "status": "operational" if spynet_status.get("running", False) else "degraded",
             "timestamp": datetime.utcnow().isoformat(),
+            "core_system": spynet_status,
             "statistics": {
                 "last_24h": {
                     "packets": stats_24h['total_packets'],
@@ -318,6 +331,104 @@ async def get_system_status():
     except Exception as e:
         logger.error(f"Error getting system status: {e}")
         raise HTTPException(status_code=500, detail="Failed to retrieve system status")
+
+
+@app.get("/api/v1/system/activity")
+async def get_system_activity(
+    minutes: int = Query(60, ge=1, le=1440, description="Time window in minutes")
+):
+    """
+    Get recent system activity summary.
+    
+    - **minutes**: Time window in minutes (1-1440 for up to 24 hours)
+    
+    Returns recent activity including threat detection, anomalies, and network analysis.
+    """
+    try:
+        if spynet_app:
+            activity = spynet_app.get_recent_activity(minutes=minutes)
+            return activity
+        else:
+            return {
+                "error": "SpyNet core system not available",
+                "time_window_minutes": minutes,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+    except Exception as e:
+        logger.error(f"Error getting system activity: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve system activity")
+
+
+@app.post("/api/v1/system/configure")
+async def configure_system(
+    port_scan_threshold: Optional[int] = None,
+    ddos_threshold: Optional[int] = None,
+    anomaly_contamination: Optional[float] = None
+):
+    """
+    Configure system detection thresholds dynamically.
+    
+    - **port_scan_threshold**: Number of ports scanned before triggering alert
+    - **ddos_threshold**: Connection rate threshold for DDoS detection
+    - **anomaly_contamination**: Expected proportion of anomalies (0.0-1.0)
+    
+    Updates detection parameters without restarting the system.
+    """
+    try:
+        if not spynet_app:
+            raise HTTPException(status_code=503, detail="SpyNet core system not available")
+        
+        config_params = {}
+        if port_scan_threshold is not None:
+            config_params["port_scan_threshold"] = port_scan_threshold
+        if ddos_threshold is not None:
+            config_params["ddos_threshold"] = ddos_threshold
+        if anomaly_contamination is not None:
+            config_params["anomaly_contamination"] = anomaly_contamination
+        
+        if not config_params:
+            raise HTTPException(status_code=400, detail="No configuration parameters provided")
+        
+        success = spynet_app.configure_detection_thresholds(**config_params)
+        
+        if success:
+            return {
+                "message": "Configuration updated successfully",
+                "updated_parameters": config_params,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        else:
+            raise HTTPException(status_code=500, detail="Failed to update configuration")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error configuring system: {e}")
+        raise HTTPException(status_code=500, detail="Failed to configure system")
+
+
+@app.post("/api/v1/system/reset-stats")
+async def reset_system_statistics():
+    """
+    Reset all system statistics and counters.
+    
+    Clears packet counts, threat detection statistics, and connection tracking
+    while keeping the system running.
+    """
+    try:
+        if not spynet_app:
+            raise HTTPException(status_code=503, detail="SpyNet core system not available")
+        
+        spynet_app.reset_statistics()
+        
+        return {
+            "message": "System statistics reset successfully",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error resetting statistics: {e}")
+        raise HTTPException(status_code=500, detail="Failed to reset statistics")
 
 
 # WebSocket endpoint for real-time data streaming
@@ -435,11 +546,34 @@ async def broadcast_realtime_data():
             await asyncio.sleep(30)
 
 
+# Global SpyNet application instance
+spynet_app = None
+
 # Startup event to initialize background tasks
 @app.on_event("startup")
 async def startup_event():
-    """Initialize background tasks on startup"""
+    """Initialize background tasks and SpyNet core system on startup"""
+    global spynet_app
     logger.info("SpyNet API starting up...")
+    
+    try:
+        # Initialize SpyNet core application
+        from spynet_app import SpyNetApp
+        spynet_app = SpyNetApp()
+        
+        # Start SpyNet in a separate thread to avoid blocking the API
+        import threading
+        def start_spynet():
+            if not spynet_app.start():
+                logger.error("Failed to start SpyNet core system")
+        
+        spynet_thread = threading.Thread(target=start_spynet, daemon=True)
+        spynet_thread.start()
+        
+        logger.info("SpyNet core system initialization started")
+        
+    except Exception as e:
+        logger.error(f"Error initializing SpyNet core system: {e}")
     
     # Start background task for real-time data broadcasting
     asyncio.create_task(broadcast_realtime_data())
@@ -450,7 +584,18 @@ async def startup_event():
 @app.on_event("shutdown")
 async def shutdown_event():
     """Cleanup on shutdown"""
+    global spynet_app
     logger.info("SpyNet API shutting down...")
+    
+    try:
+        # Stop SpyNet core system
+        if spynet_app:
+            spynet_app.stop()
+            logger.info("SpyNet core system stopped")
+    except Exception as e:
+        logger.error(f"Error stopping SpyNet core system: {e}")
+    
+    logger.info("SpyNet API shutdown complete")
 
 
 if __name__ == "__main__":

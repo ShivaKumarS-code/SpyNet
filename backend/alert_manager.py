@@ -20,6 +20,7 @@ from sqlalchemy import desc, and_, or_
 from models import Alert, get_db, db_manager
 from threat_detector import ThreatAlert, AlertSeverity
 from config import settings
+from config_manager import config_manager
 
 
 class AlertManager:
@@ -64,15 +65,29 @@ class AlertManager:
         self._setup_alert_logging()
     
     def _get_default_email_config(self) -> Dict[str, Any]:
-        """Get default email configuration from settings"""
-        return {
-            "smtp_server": settings.smtp_server,
-            "smtp_port": settings.smtp_port,
-            "username": settings.smtp_username,
-            "password": settings.smtp_password,
-            "from_email": settings.smtp_username or "spynet@localhost",
-            "to_emails": ["admin@localhost"]  # Default recipient
-        }
+        """Get default email configuration from configuration manager"""
+        try:
+            alert_config = config_manager.get_alert_configuration()
+            return {
+                "smtp_server": alert_config.smtp_server,
+                "smtp_port": alert_config.smtp_port,
+                "username": alert_config.smtp_username,
+                "password": alert_config.smtp_password,
+                "from_email": alert_config.smtp_username or "spynet@localhost",
+                "to_emails": alert_config.alert_emails or ["admin@localhost"],
+                "use_tls": alert_config.smtp_use_tls
+            }
+        except Exception as e:
+            self.logger.warning(f"Error loading email config from configuration manager: {e}")
+            # Fallback to settings
+            return {
+                "smtp_server": settings.smtp_server,
+                "smtp_port": settings.smtp_port,
+                "username": settings.smtp_username,
+                "password": settings.smtp_password,
+                "from_email": settings.smtp_username or "spynet@localhost",
+                "to_emails": ["admin@localhost"]
+            }
     
     def _setup_alert_logging(self) -> None:
         """Setup dedicated alert file logging"""
@@ -497,6 +512,34 @@ class AlertManager:
         except Exception as e:
             self.logger.error(f"Error getting database session: {e}")
             return False
+    
+    def update_configuration(self, email_config: Optional[Dict[str, Any]] = None) -> None:
+        """
+        Update alert manager configuration from configuration manager.
+        
+        Args:
+            email_config: Optional email configuration override
+        """
+        try:
+            alert_config = config_manager.get_alert_configuration()
+            
+            # Update email configuration
+            if email_config:
+                self.email_config = email_config
+            else:
+                self.email_config = self._get_default_email_config()
+            
+            # Update alert settings
+            self.enable_email = alert_config.enable_email
+            self.critical_only = alert_config.critical_only
+            
+            # Update deduplication window
+            self.dedup_window_minutes = alert_config.dedup_window_minutes
+            
+            self.logger.info("Alert manager configuration updated from configuration manager")
+            
+        except Exception as e:
+            self.logger.error(f"Error updating alert manager configuration: {e}")
     
     def cleanup_old_alerts(self, days: int = 30) -> int:
         """

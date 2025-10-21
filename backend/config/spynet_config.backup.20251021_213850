@@ -1,0 +1,93 @@
+{
+  "detection": {
+    "port_scan_threshold": 10,
+    "ddos_threshold": 100,
+    "anomaly_contamination": 0.1,
+    "scan_time_window": 300,
+    "ddos_time_window": 60,
+    "connection_timeout": 300,
+    "brute_force_threshold": 5,
+    "brute_force_time_window": 300
+  },
+  "alerts": {
+    "severity_levels": {
+      "Low": 1,
+      "Medium": 2,
+      "High": 3,
+      "Critical": 4
+    },
+    "enable_email": true,
+    "enable_syslog": false,
+    "enable_webhook": false,
+    "critical_only": false,
+    "dedup_window_minutes": 10,
+    "max_alerts_per_hour": 100,
+    "alert_retention_days": 30,
+    "smtp_server": "smtp.gmail.com",
+    "smtp_port": 587,
+    "smtp_username": "",
+    "smtp_password": "",
+    "smtp_use_tls": true,
+    "alert_emails": [],
+    "webhook_url": "",
+    "webhook_timeout": 30,
+    "syslog_server": "localhost",
+    "syslog_port": 514,
+    "syslog_facility": "local0"
+  },
+  "interface": {
+    "capture_interface": "auto",
+    "packet_buffer_size": 1000,
+    "capture_timeout": 1,
+    "promiscuous_mode": true,
+    "packet_filters": [],
+    "excluded_ips": [],
+    "included_ips": [],
+    "excluded_ports": [],
+    "included_ports": [],
+    "max_packet_size": 65535
+  },
+  "rules": {
+    "custom_rules": [],
+    "rule_categories": {
+      "malware": [
+        "trojan",
+        "virus",
+        "backdoor",
+        "botnet"
+      ],
+      "web_attacks": [
+        "sql_injection",
+        "xss",
+        "command_injection"
+      ],
+      "network_attacks": [
+        "port_scan",
+        "ddos",
+        "brute_force"
+      ],
+      "data_exfiltration": [
+        "large_upload",
+        "suspicious_transfer"
+      ]
+    },
+    "enable_custom_rules": true,
+    "rule_update_interval": 3600
+  },
+  "system": {
+    "log_level": "INFO",
+    "log_file": "spynet.log",
+    "log_rotation_size": 10485760,
+    "log_retention_days": 30,
+    "debug": false,
+    "max_connections_tracked": 10000,
+    "stats_update_interval": 30,
+    "anomaly_model_retrain_hours": 24,
+    "cleanup_interval_minutes": 60,
+    "database_cleanup_days": 30,
+    "connection_pool_size": 20,
+    "query_timeout": 30
+  },
+  "config_version": "1.0",
+  "last_updated": "2025-10-21T21:38:50.503850"
+}

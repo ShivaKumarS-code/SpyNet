@@ -26,6 +26,7 @@ except ImportError as e:
 from packet_analyzer import PacketInfo
 from models import Alert
 from threat_detector import ThreatAlert, AlertSeverity, ThreatType
+from config_manager import config_manager
 
 
 @dataclass
@@ -86,7 +87,7 @@ class AnomalyDetector:
     """
     
     def __init__(self, 
-                 contamination: float = 0.1,
+                 contamination: Optional[float] = None,
                  baseline_window_hours: int = 24,
                  min_baseline_samples: int = 1000,
                  anomaly_threshold: float = -0.5,
@@ -95,12 +96,17 @@ class AnomalyDetector:
         Initialize AnomalyDetector instance.
         
         Args:
-            contamination: Expected proportion of anomalies in the data
+            contamination: Expected proportion of anomalies in the data (if None, uses config manager)
             baseline_window_hours: Hours of data to use for baseline learning
             min_baseline_samples: Minimum samples needed before training model
             anomaly_threshold: Threshold for anomaly score classification
             model_save_path: Path to save/load the trained model
         """
+        # Load contamination from configuration manager if not provided
+        if contamination is None:
+            detection_config = config_manager.get_detection_thresholds()
+            contamination = detection_config.anomaly_contamination
+        
         self.contamination = contamination
         self.baseline_window_hours = baseline_window_hours
         self.min_baseline_samples = min_baseline_samples
@@ -657,6 +663,38 @@ class AnomalyDetector:
             
         except Exception as e:
             self.logger.error(f"Error marking false positive: {e}")
+    
+    def update_configuration(self) -> None:
+        """Update configuration from configuration manager"""
+        try:
+            detection_config = config_manager.get_detection_thresholds()
+            
+            # Update contamination parameter
+            old_contamination = self.contamination
+            self.contamination = detection_config.anomaly_contamination
+            
+            # If contamination changed, recreate the isolation forest
+            if old_contamination != self.contamination:
+                self.isolation_forest = IsolationForest(
+                    contamination=self.contamination,
+                    random_state=42,
+                    n_estimators=100,
+                    max_samples='auto',
+                    max_features=1.0,
+                    bootstrap=False,
+                    n_jobs=-1,
+                    verbose=0
+                )
+                
+                # If we were trained, retrain with new contamination
+                if self.trained and len(self.baseline_data) >= self.min_baseline_samples:
+                    self.logger.info(f"Contamination changed from {old_contamination} to {self.contamination}, retraining model")
+                    self._train_model()
+                
+                self.logger.info(f"Updated anomaly detection contamination to {self.contamination}")
+            
+        except Exception as e:
+            self.logger.error(f"Error updating anomaly detector configuration: {e}")
     
     def reset_detector(self) -> None:
         """Reset the anomaly detector state"""

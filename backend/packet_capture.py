@@ -22,6 +22,8 @@ except ImportError as e:
     print("Please install Scapy: pip install scapy")
     raise
 
+from config_manager import config_manager
+
 
 @dataclass
 class CapturedPacket:
@@ -40,16 +42,22 @@ class PacketCapture:
     basic packet filtering capabilities.
     """
     
-    def __init__(self, interface: str = None, buffer_size: int = 1000):
+    def __init__(self, interface: str = None, buffer_size: int = None):
         """
         Initialize PacketCapture instance.
         
         Args:
-            interface: Network interface to capture from (auto-detect if None)
-            buffer_size: Maximum size of packet buffer queue
+            interface: Network interface to capture from (auto-detect if None, uses config manager)
+            buffer_size: Maximum size of packet buffer queue (uses config manager if None)
         """
-        self.interface = interface or self._get_default_interface()
-        self.buffer_size = buffer_size
+        # Load configuration from configuration manager
+        interface_config = config_manager.get_interface_configuration()
+        
+        self.interface = interface or (
+            interface_config.capture_interface if interface_config.capture_interface != "auto" 
+            else self._get_default_interface()
+        )
+        self.buffer_size = buffer_size or interface_config.packet_buffer_size
         self.packet_queue = queue.Queue(maxsize=buffer_size)
         self.running = False
         self.capture_thread = None
@@ -237,6 +245,53 @@ class PacketCapture:
             self.capture_thread.join(timeout=5.0)
         
         self.logger.info(f"Packet capture stopped. Captured: {self.packet_count}, Dropped: {self.dropped_packets}")
+    
+    def update_configuration(self) -> None:
+        """Update packet capture configuration from configuration manager"""
+        try:
+            interface_config = config_manager.get_interface_configuration()
+            
+            # Update interface if it changed
+            new_interface = (
+                interface_config.capture_interface if interface_config.capture_interface != "auto" 
+                else self._get_default_interface()
+            )
+            
+            if new_interface != self.interface:
+                was_running = self.running
+                if was_running:
+                    self.stop_capture()
+                
+                self.interface = new_interface
+                self.logger.info(f"Updated capture interface to {self.interface}")
+                
+                if was_running:
+                    self.start_capture()
+            
+            # Update buffer size (requires restart if running)
+            if interface_config.packet_buffer_size != self.buffer_size:
+                was_running = self.running
+                if was_running:
+                    self.stop_capture()
+                
+                self.buffer_size = interface_config.packet_buffer_size
+                self.packet_queue = queue.Queue(maxsize=self.buffer_size)
+                self.logger.info(f"Updated packet buffer size to {self.buffer_size}")
+                
+                if was_running:
+                    self.start_capture()
+            
+            # Update packet filters
+            self.packet_filters = interface_config.packet_filters
+            self.excluded_ips = interface_config.excluded_ips
+            self.included_ips = interface_config.included_ips
+            self.excluded_ports = interface_config.excluded_ports
+            self.included_ports = interface_config.included_ports
+            
+            self.logger.info("Packet capture configuration updated from configuration manager")
+            
+        except Exception as e:
+            self.logger.error(f"Error updating packet capture configuration: {e}")
     
     def get_packet(self) -> Optional[CapturedPacket]:
         """
