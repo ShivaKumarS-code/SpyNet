@@ -8,7 +8,6 @@ SpyNet is an advanced Network Traffic Analyzer and Intrusion Detection System (I
 SpyNet/
 ├── backend/          # Python FastAPI backend with packet capture and analysis
 ├── frontend/         # Next.js dashboard with TypeScript and Tailwind CSS
-├── .kiro/           # Kiro IDE specifications and configuration
 └── README.md        # This file
 ```
 
