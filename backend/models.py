@@ -224,12 +224,7 @@ def init_default_config():
                 'description': 'Packet buffer size for capture queue',
                 'category': 'capture'
             },
-            {
-                'key': 'alerts.email_notifications',
-                'value': True,
-                'description': 'Enable email notifications for alerts',
-                'category': 'alerts'
-            },
+
             {
                 'key': 'alerts.critical_only',
                 'value': False,

@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { io, Socket } from 'socket.io-client';
 
 interface TrafficData {
   timestamp: string;
@@ -43,107 +42,263 @@ export function useWebSocket(url: string) {
   });
   const [topTalkers, setTopTalkers] = useState<TopTalker[]>([]);
   
-  const socketRef = useRef<Socket | null>(null);
+  const socketRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
-    // Initialize socket connection
-    socketRef.current = io(url, {
-      transports: ['websocket'],
-      autoConnect: true
-    });
+    // Convert HTTP URL to WebSocket URL
+    const wsUrl = url.replace('http://', 'ws://').replace('https://', 'wss://') + '/ws/realtime';
+    console.log('Attempting to connect to WebSocket:', wsUrl);
+    
+    // Initialize WebSocket connection
+    try {
+      socketRef.current = new WebSocket(wsUrl);
+    } catch (error) {
+      console.error('Failed to create WebSocket:', error);
+      return;
+    }
 
     const socket = socketRef.current;
 
-    socket.on('connect', () => {
+    socket.onopen = () => {
       setIsConnected(true);
-      console.log('Connected to SpyNet backend');
-    });
+      console.log('✅ Connected to SpyNet backend via WebSocket');
+      
+      // Send subscription request
+      try {
+        socket.send(JSON.stringify({
+          type: 'subscribe',
+          data_types: ['alerts', 'traffic', 'connections', 'stats']
+        }));
+        console.log('📡 Sent subscription request');
+      } catch (error) {
+        console.error('Failed to send subscription:', error);
+      }
+      
+      // Fetch initial data from API
+      fetchInitialData();
+    };
+    
+    const fetchInitialData = async () => {
+      try {
+        // Use the base URL directly since url is already the base URL
+        const baseUrl = url;
+        console.log('🔗 Fetching initial data from:', baseUrl);
+        
+        // Fetch traffic stats
+        const trafficResponse = await fetch(`${baseUrl}/api/v1/traffic/stats?hours=1`);
+        if (trafficResponse.ok) {
+          const trafficData = await trafficResponse.json();
+          console.log('📊 Initial traffic data:', trafficData);
+          
+          setStats(prev => ({
+            ...prev,
+            totalPackets: trafficData.total_packets || 0,
+            totalBytes: trafficData.total_bytes || 0
+          }));
+          
+          if (trafficData.top_sources) {
+            const talkers = trafficData.top_sources.map((source: any) => ({
+              ip: source.ip,
+              packets: source.packet_count,
+              bytes: source.total_bytes
+            }));
+            setTopTalkers(talkers);
+          }
+        }
+        
+        // Fetch alerts
+        const alertsResponse = await fetch(`${baseUrl}/api/v1/alerts?limit=10`);
+        if (alertsResponse.ok) {
+          const alertsData = await alertsResponse.json();
+          console.log('🚨 Initial alerts data:', alertsData);
+          
+          const formattedAlerts = alertsData.map((alert: any) => ({
+            id: alert.id.toString(),
+            timestamp: alert.timestamp,
+            type: alert.alert_type,
+            severity: alert.severity,
+            source_ip: alert.source_ip,
+            description: alert.description
+          }));
+          
+          setAlerts(formattedAlerts);
+          setStats(prev => ({
+            ...prev,
+            alertsCount: alertsData.length
+          }));
+        }
+        
+        // Fetch active connections
+        const connectionsResponse = await fetch(`${baseUrl}/api/v1/connections/active?limit=100`);
+        if (connectionsResponse.ok) {
+          const connectionsData = await connectionsResponse.json();
+          console.log('🔗 Initial connections data:', connectionsData);
+          
+          setStats(prev => ({
+            ...prev,
+            activeConnections: connectionsData.length
+          }));
+        }
+        
+      } catch (error) {
+        console.error('Error fetching initial data:', error);
+      }
+    };
 
-    socket.on('disconnect', () => {
+    socket.onclose = (event) => {
       setIsConnected(false);
-      console.log('Disconnected from SpyNet backend');
-    });
+      console.log('❌ Disconnected from SpyNet backend. Code:', event.code, 'Reason:', event.reason);
+    };
 
-    socket.on('traffic_update', (data: TrafficData) => {
-      setTrafficData(prev => {
-        const newData = [...prev, data];
-        // Keep only last 50 data points for performance
-        return newData.slice(-50);
-      });
-    });
+    socket.onerror = (error) => {
+      console.error('🚨 WebSocket error:', error);
+      console.error('WebSocket URL was:', wsUrl);
+      setIsConnected(false);
+    };
 
-    socket.on('new_alert', (alert: Alert) => {
-      setAlerts(prev => [alert, ...prev.slice(0, 99)]); // Keep last 100 alerts
-    });
-
-    socket.on('stats_update', (newStats: Stats) => {
-      setStats(newStats);
-    });
-
-    socket.on('top_talkers_update', (talkers: TopTalker[]) => {
-      setTopTalkers(talkers);
-    });
+    socket.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data);
+        
+        switch (message.type) {
+          case 'traffic_stats':
+            if (message.data) {
+              console.log('📊 Received traffic stats:', message.data);
+              // Convert backend traffic stats to frontend format
+              const now = new Date().toISOString();
+              const trafficPoint = {
+                timestamp: now,
+                packets: message.data.total_packets || 0,
+                bytes: message.data.total_bytes || 0
+              };
+              setTrafficData(prev => {
+                const newData = [...prev, trafficPoint];
+                return newData.slice(-50);
+              });
+              
+              // Update stats from traffic data
+              setStats(prev => ({
+                ...prev,
+                totalPackets: message.data.total_packets || 0,
+                totalBytes: message.data.total_bytes || 0
+              }));
+              
+              // Update top talkers
+              if (message.data.top_sources) {
+                const talkers = message.data.top_sources.map((source: any) => ({
+                  ip: source.ip,
+                  packets: source.packet_count,
+                  bytes: source.total_bytes
+                }));
+                setTopTalkers(talkers);
+              }
+            }
+            break;
+            
+          case 'traffic_update':
+            if (message.data) {
+              console.log('📊 Received traffic update:', message.data);
+              setTrafficData(prev => {
+                const newData = [...prev, message.data];
+                return newData.slice(-50);
+              });
+            }
+            break;
+            
+          case 'alert_count':
+            if (message.data) {
+              setStats(prev => ({
+                ...prev,
+                alertsCount: message.data.unresolved_count || 0
+              }));
+            }
+            break;
+            
+          case 'new_alert':
+            if (message.data) {
+              setAlerts(prev => [message.data, ...prev.slice(0, 99)]);
+            }
+            break;
+            
+          case 'stats_update':
+            if (message.data) {
+              setStats(message.data);
+            }
+            break;
+            
+          case 'top_talkers_update':
+            if (message.data) {
+              setTopTalkers(message.data);
+            }
+            break;
+            
+          case 'welcome':
+            console.log('WebSocket welcome:', message.message);
+            break;
+            
+          case 'subscription_confirmed':
+            console.log('📡 Subscription confirmed:', message.data_types);
+            break;
+            
+          default:
+            console.log('Unknown message type:', message.type, message);
+        }
+      } catch (error) {
+        console.error('Error parsing WebSocket message:', error);
+      }
+    };
 
     // Cleanup on unmount
     return () => {
-      socket.disconnect();
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.close();
+      }
     };
   }, [url]);
 
-  // Generate mock data for development when not connected
+  // Generate sample data for immediate testing
   useEffect(() => {
-    if (!isConnected) {
-      const interval = setInterval(() => {
-        // Mock traffic data
-        const mockTrafficData: TrafficData = {
-          timestamp: new Date().toISOString(),
-          packets: Math.floor(Math.random() * 1000) + 100,
-          bytes: Math.floor(Math.random() * 100000) + 10000
-        };
-        
-        setTrafficData(prev => {
-          const newData = [...prev, mockTrafficData];
-          return newData.slice(-50);
-        });
-
-        // Mock stats
-        setStats({
-          totalPackets: Math.floor(Math.random() * 100000) + 50000,
-          totalBytes: Math.floor(Math.random() * 10000000) + 5000000,
-          activeConnections: Math.floor(Math.random() * 500) + 100,
-          alertsCount: Math.floor(Math.random() * 50) + 10
-        });
-
-        // Mock top talkers
-        setTopTalkers([
-          { ip: '192.168.1.100', packets: 15420, bytes: 2340000 },
-          { ip: '10.0.0.50', packets: 12300, bytes: 1890000 },
-          { ip: '172.16.0.25', packets: 9800, bytes: 1560000 },
-          { ip: '192.168.1.200', packets: 7650, bytes: 1230000 },
-          { ip: '10.0.0.75', packets: 6540, bytes: 980000 }
-        ]);
-
-        // Occasionally add mock alerts
-        if (Math.random() < 0.1) {
-          const severities: Alert['severity'][] = ['Low', 'Medium', 'High', 'Critical'];
-          const types = ['Port Scan', 'DDoS Attack', 'Suspicious Payload', 'Anomaly Detected'];
-          
-          const mockAlert: Alert = {
-            id: Math.random().toString(36).substr(2, 9),
-            timestamp: new Date().toISOString(),
-            type: types[Math.floor(Math.random() * types.length)],
-            severity: severities[Math.floor(Math.random() * severities.length)],
-            source_ip: `192.168.1.${Math.floor(Math.random() * 255)}`,
-            description: 'Mock alert for development testing'
-          };
-          
-          setAlerts(prev => [mockAlert, ...prev.slice(0, 99)]);
-        }
-      }, 2000);
-
-      return () => clearInterval(interval);
-    }
-  }, [isConnected]);
+    // Always show some sample data initially for testing
+    const now = new Date();
+    const sampleTrafficData = Array.from({ length: 10 }, (_, i) => ({
+      timestamp: new Date(now.getTime() - (9 - i) * 60000).toISOString(),
+      packets: Math.floor(Math.random() * 100) + 50,
+      bytes: Math.floor(Math.random() * 50000) + 10000
+    }));
+    
+    setTrafficData(sampleTrafficData);
+    setStats({
+      totalPackets: 1250,
+      totalBytes: 2500000,
+      activeConnections: 45,
+      alertsCount: 3
+    });
+    setTopTalkers([
+      { ip: '192.168.1.100', packets: 450, bytes: 890000 },
+      { ip: '192.168.1.101', packets: 320, bytes: 650000 },
+      { ip: '192.168.1.102', packets: 280, bytes: 520000 }
+    ]);
+    
+    // Add some sample alerts
+    setAlerts([
+      {
+        id: '1',
+        timestamp: new Date().toISOString(),
+        type: 'Port Scan',
+        severity: 'High',
+        source_ip: '203.0.113.10',
+        description: 'Port scan detected from external IP'
+      },
+      {
+        id: '2',
+        timestamp: new Date(Date.now() - 300000).toISOString(),
+        type: 'DDoS Attack',
+        severity: 'Critical',
+        source_ip: '198.51.100.25',
+        description: 'Potential DDoS attack detected'
+      }
+    ]);
+  }, []); // Run once on mount
 
   return {
     isConnected,

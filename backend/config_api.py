@@ -70,10 +70,10 @@ class CustomRuleRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     description: str = Field(..., min_length=1, max_length=500)
     pattern: str = Field(..., min_length=1, max_length=1000)
-    pattern_type: str = Field(..., regex="^(regex|string|bytes)$")
-    severity: str = Field(..., regex="^(Low|Medium|High|Critical)$")
+    pattern_type: str = Field(..., pattern="^(regex|string|bytes)$")
+    severity: str = Field(..., pattern="^(Low|Medium|High|Critical)$")
     enabled: bool = True
-    protocol: str = Field("any", regex="^(tcp|udp|icmp|any)$")
+    protocol: str = Field("any", pattern="^(tcp|udp|icmp|any)$")
     ports: List[int] = Field(default_factory=list)
 
 
@@ -81,16 +81,16 @@ class CustomRuleUpdateRequest(BaseModel):
     """Request model for updating custom rules"""
     description: Optional[str] = Field(None, min_length=1, max_length=500)
     pattern: Optional[str] = Field(None, min_length=1, max_length=1000)
-    pattern_type: Optional[str] = Field(None, regex="^(regex|string|bytes)$")
-    severity: Optional[str] = Field(None, regex="^(Low|Medium|High|Critical)$")
+    pattern_type: Optional[str] = Field(None, pattern="^(regex|string|bytes)$")
+    severity: Optional[str] = Field(None, pattern="^(Low|Medium|High|Critical)$")
     enabled: Optional[bool] = None
-    protocol: Optional[str] = Field(None, regex="^(tcp|udp|icmp|any)$")
+    protocol: Optional[str] = Field(None, pattern="^(tcp|udp|icmp|any)$")
     ports: Optional[List[int]] = None
 
 
 class ConfigurationExportRequest(BaseModel):
     """Request model for configuration export"""
-    format: str = Field("json", regex="^(json|yaml)$")
+    format: str = Field("json", pattern="^(json|yaml)$")
     include_sensitive: bool = Field(False, description="Include sensitive data like passwords")
 
 

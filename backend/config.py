@@ -23,11 +23,6 @@ class Settings(BaseSettings):
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
     
-    # Email Configuration
-    smtp_server: str = "smtp.gmail.com"
-    smtp_port: int = 587
-    smtp_username: Optional[str] = None
-    smtp_password: Optional[str] = None
     
     # Packet Capture Configuration
     capture_interface: str = "eth0"

@@ -130,11 +130,7 @@ class SpyNetApp:
             self.anomaly_detector = AnomalyDetector(contamination=contamination)
             
             # Initialize alert manager
-            email_config = self._get_email_config_from_manager()
-            enable_email = self.config.get("enable_email", alert_config.enable_email)
             self.alert_manager = AlertManager(
-                email_config=email_config,
-                enable_email=enable_email,
                 log_file="logs/alerts.log"
             )
             
@@ -147,19 +143,7 @@ class SpyNetApp:
             self.logger.error(f"Error initializing components: {e}")
             raise
     
-    def _get_email_config_from_manager(self) -> Dict[str, Any]:
-        """Get email configuration from configuration manager"""
-        alert_config = config_manager.get_alert_configuration()
-        
-        return {
-            "smtp_server": self.config.get("smtp_server", alert_config.smtp_server),
-            "smtp_port": self.config.get("smtp_port", alert_config.smtp_port),
-            "username": self.config.get("smtp_username", alert_config.smtp_username),
-            "password": self.config.get("smtp_password", alert_config.smtp_password),
-            "from_email": alert_config.smtp_username or "spynet@localhost",
-            "to_emails": self.config.get("alert_emails", alert_config.alert_emails or ["admin@localhost"]),
-            "use_tls": alert_config.smtp_use_tls
-        }
+
     
     def _on_configuration_changed(self, new_config) -> None:
         """Handle configuration changes"""
@@ -177,12 +161,7 @@ class SpyNetApp:
             
             # Update alert manager configuration
             if self.alert_manager:
-                alert_config = config_manager.get_alert_configuration()
-                email_config = self._get_email_config_from_manager()
-                self.alert_manager.update_configuration(
-                    email_config=email_config,
-                    enable_email=alert_config.enable_email
-                )
+                self.alert_manager.update_configuration()
             
             self.logger.info("Components updated with new configuration")
             
@@ -254,14 +233,15 @@ class SpyNetApp:
         try:
             self.logger.info("Initializing database...")
             
-            # Test database connection
-            db_manager.init_db()
+            # Test database connection and create tables
+            db_manager.create_tables()
             
             # Test database operations
             session = db_manager.get_session()
             try:
                 # Simple query to test connection
-                session.execute("SELECT 1")
+                from sqlalchemy import text
+                session.execute(text("SELECT 1"))
                 session.commit()
                 self.logger.info("Database connection established")
                 return True
@@ -631,11 +611,7 @@ Examples:
         help="DDoS detection threshold"
     )
     
-    parser.add_argument(
-        "--no-email",
-        action="store_true",
-        help="Disable email notifications"
-    )
+
     
     parser.add_argument(
         "--log-level",
@@ -668,8 +644,7 @@ def main():
     if args.ddos_threshold:
         config["ddos_threshold"] = args.ddos_threshold
     
-    if args.no_email:
-        config["enable_email"] = False
+
     
     if args.log_level:
         config["log_level"] = args.log_level
@@ -716,7 +691,7 @@ def main():
         print(f"  Interface: {config.get('capture_interface', settings.capture_interface)}")
         print(f"  Port scan threshold: {config.get('port_scan_threshold', settings.port_scan_threshold)}")
         print(f"  DDoS threshold: {config.get('ddos_threshold', settings.ddos_threshold)}")
-        print(f"  Email enabled: {config.get('enable_email', True)}")
+
         print(f"  Log level: {config.get('log_level', settings.log_level)}")
 
 

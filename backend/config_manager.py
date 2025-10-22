@@ -49,7 +49,7 @@ class AlertConfiguration:
         "High": 3,
         "Critical": 4
     })
-    enable_email: bool = True
+    enable_email: bool = False
     enable_syslog: bool = False
     enable_webhook: bool = False
     critical_only: bool = False
@@ -57,13 +57,11 @@ class AlertConfiguration:
     max_alerts_per_hour: int = 100
     alert_retention_days: int = 30
     
-    # Email settings
-    smtp_server: str = "smtp.gmail.com"
+    # Email/SMTP settings
+    smtp_server: str = ""
     smtp_port: int = 587
     smtp_username: str = ""
     smtp_password: str = ""
-    smtp_use_tls: bool = True
-    alert_emails: List[str] = field(default_factory=list)
     
     # Webhook settings
     webhook_url: str = ""
@@ -358,9 +356,7 @@ class ConfigurationManager:
                 self.logger.error("Anomaly contamination must be between 0.0 and 1.0")
                 return False
             
-            # Validate alert configuration
-            if self.config.alerts.enable_email and not self.config.alerts.alert_emails:
-                self.logger.warning("Email alerts enabled but no email addresses configured")
+
             
             # Validate interface configuration
             if self.config.interface.packet_buffer_size < 100:
@@ -760,8 +756,7 @@ class ConfigurationManager:
                 "anomaly_contamination": self.config.detection.anomaly_contamination
             },
             "alert_settings": {
-                "email_enabled": self.config.alerts.enable_email,
-                "email_count": len(self.config.alerts.alert_emails),
+
                 "severity_levels": len(self.config.alerts.severity_levels)
             },
             "interface_settings": {

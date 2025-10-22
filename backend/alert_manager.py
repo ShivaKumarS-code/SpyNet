@@ -6,12 +6,9 @@ about security alerts with severity classification and notification capabilities
 """
 
 import logging
-import smtplib
 import json
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 from pathlib import Path
 
 from sqlalchemy.orm import Session
@@ -32,23 +29,14 @@ class AlertManager:
     """
     
     def __init__(self, 
-                 email_config: Optional[Dict[str, Any]] = None,
-                 log_file: str = "alerts.log",
-                 enable_email: bool = True,
-                 critical_only: bool = False):
+                 log_file: str = "alerts.log"):
         """
         Initialize AlertManager instance.
         
         Args:
-            email_config: Email configuration dictionary
             log_file: Path to alert log file
-            enable_email: Whether to enable email notifications
-            critical_only: Whether to send notifications only for critical alerts
         """
-        self.email_config = email_config or self._get_default_email_config()
         self.log_file = Path(log_file)
-        self.enable_email = enable_email
-        self.critical_only = critical_only
         
         # Alert deduplication tracking
         self.recent_alerts: Dict[str, datetime] = {}
@@ -57,37 +45,13 @@ class AlertManager:
         # Statistics
         self.alerts_processed = 0
         self.alerts_stored = 0
-        self.notifications_sent = 0
         self.dedup_count = 0
         
         # Setup logging
         self.logger = logging.getLogger(__name__)
         self._setup_alert_logging()
     
-    def _get_default_email_config(self) -> Dict[str, Any]:
-        """Get default email configuration from configuration manager"""
-        try:
-            alert_config = config_manager.get_alert_configuration()
-            return {
-                "smtp_server": alert_config.smtp_server,
-                "smtp_port": alert_config.smtp_port,
-                "username": alert_config.smtp_username,
-                "password": alert_config.smtp_password,
-                "from_email": alert_config.smtp_username or "spynet@localhost",
-                "to_emails": alert_config.alert_emails or ["admin@localhost"],
-                "use_tls": alert_config.smtp_use_tls
-            }
-        except Exception as e:
-            self.logger.warning(f"Error loading email config from configuration manager: {e}")
-            # Fallback to settings
-            return {
-                "smtp_server": settings.smtp_server,
-                "smtp_port": settings.smtp_port,
-                "username": settings.smtp_username,
-                "password": settings.smtp_password,
-                "from_email": settings.smtp_username or "spynet@localhost",
-                "to_emails": ["admin@localhost"]
-            }
+
     
     def _setup_alert_logging(self) -> None:
         """Setup dedicated alert file logging"""
@@ -141,11 +105,6 @@ class AlertManager:
             
             # Log alert to file
             self._log_alert(threat_alert)
-            
-            # Send notification if appropriate
-            if self._should_notify(threat_alert):
-                self._send_notification(threat_alert)
-                self.notifications_sent += 1
             
             # Record alert for deduplication
             self._record_alert_for_dedup(threat_alert)
@@ -237,109 +196,7 @@ class AlertManager:
         except Exception as e:
             self.logger.error(f"Error logging alert to file: {e}")
     
-    def _should_notify(self, threat_alert: ThreatAlert) -> bool:
-        """Determine if notification should be sent for this alert"""
-        if not self.enable_email:
-            return False
-        
-        if self.critical_only:
-            return threat_alert.severity == AlertSeverity.CRITICAL
-        
-        # Send notifications for Medium, High, and Critical alerts
-        return threat_alert.severity in [AlertSeverity.MEDIUM, AlertSeverity.HIGH, AlertSeverity.CRITICAL]
-    
-    def _send_notification(self, threat_alert: ThreatAlert) -> bool:
-        """Send email notification for alert"""
-        try:
-            if not self.email_config.get("username") or not self.email_config.get("password"):
-                self.logger.warning("Email credentials not configured, skipping notification")
-                return False
-            
-            # Create email message
-            msg = MIMEMultipart()
-            msg['From'] = self.email_config["from_email"]
-            msg['To'] = ", ".join(self.email_config["to_emails"])
-            msg['Subject'] = f"SpyNet Security Alert - {threat_alert.severity.value}: {threat_alert.alert_type}"
-            
-            # Create email body
-            body = self._create_email_body(threat_alert)
-            msg.attach(MIMEText(body, 'html'))
-            
-            # Send email
-            with smtplib.SMTP(self.email_config["smtp_server"], self.email_config["smtp_port"]) as server:
-                server.starttls()
-                server.login(self.email_config["username"], self.email_config["password"])
-                server.send_message(msg)
-            
-            self.logger.info(f"Email notification sent for {threat_alert.alert_type} alert")
-            return True
-            
-        except Exception as e:
-            self.logger.error(f"Error sending email notification: {e}")
-            return False
-    
-    def _create_email_body(self, threat_alert: ThreatAlert) -> str:
-        """Create HTML email body for alert notification"""
-        severity_colors = {
-            AlertSeverity.LOW: "#28a745",
-            AlertSeverity.MEDIUM: "#ffc107", 
-            AlertSeverity.HIGH: "#fd7e14",
-            AlertSeverity.CRITICAL: "#dc3545"
-        }
-        
-        color = severity_colors.get(threat_alert.severity, "#6c757d")
-        
-        html_body = f"""
-        <html>
-        <head>
-            <style>
-                body {{ font-family: Arial, sans-serif; margin: 20px; }}
-                .alert-header {{ background-color: {color}; color: white; padding: 15px; border-radius: 5px; }}
-                .alert-content {{ padding: 20px; border: 1px solid #ddd; border-radius: 5px; margin-top: 10px; }}
-                .detail-table {{ width: 100%; border-collapse: collapse; margin-top: 15px; }}
-                .detail-table th, .detail-table td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
-                .detail-table th {{ background-color: #f2f2f2; }}
-            </style>
-        </head>
-        <body>
-            <div class="alert-header">
-                <h2>SpyNet Security Alert</h2>
-                <h3>{threat_alert.severity.value}: {threat_alert.alert_type}</h3>
-            </div>
-            
-            <div class="alert-content">
-                <p><strong>Description:</strong> {threat_alert.description}</p>
-                
-                <table class="detail-table">
-                    <tr><th>Timestamp</th><td>{threat_alert.timestamp.strftime('%Y-%m-%d %H:%M:%S UTC')}</td></tr>
-                    <tr><th>Source IP</th><td>{threat_alert.source_ip}</td></tr>
-                    <tr><th>Destination IP</th><td>{threat_alert.destination_ip or 'N/A'}</td></tr>
-                    <tr><th>Alert Type</th><td>{threat_alert.alert_type}</td></tr>
-                    <tr><th>Severity</th><td>{threat_alert.severity.value}</td></tr>
-                </table>
-                
-                <h4>Additional Details:</h4>
-                <ul>
-        """
-        
-        # Add details
-        for key, value in threat_alert.details.items():
-            if isinstance(value, list):
-                value = ", ".join(str(v) for v in value[:5])  # Limit list items
-                if len(threat_alert.details[key]) > 5:
-                    value += "..."
-            html_body += f"<li><strong>{key.replace('_', ' ').title()}:</strong> {value}</li>"
-        
-        html_body += """
-                </ul>
-                
-                <p><em>This is an automated alert from SpyNet Network Intrusion Detection System.</em></p>
-            </div>
-        </body>
-        </html>
-        """
-        
-        return html_body
+
     
     def get_recent_alerts(self, limit: int = 50, severity_filter: Optional[str] = None) -> List[Alert]:
         """
@@ -463,7 +320,6 @@ class AlertManager:
                     "manager_stats": {
                         "alerts_processed": self.alerts_processed,
                         "alerts_stored": self.alerts_stored,
-                        "notifications_sent": self.notifications_sent,
                         "duplicates_suppressed": self.dedup_count
                     }
                 }
@@ -513,25 +369,12 @@ class AlertManager:
             self.logger.error(f"Error getting database session: {e}")
             return False
     
-    def update_configuration(self, email_config: Optional[Dict[str, Any]] = None) -> None:
+    def update_configuration(self) -> None:
         """
         Update alert manager configuration from configuration manager.
-        
-        Args:
-            email_config: Optional email configuration override
         """
         try:
             alert_config = config_manager.get_alert_configuration()
-            
-            # Update email configuration
-            if email_config:
-                self.email_config = email_config
-            else:
-                self.email_config = self._get_default_email_config()
-            
-            # Update alert settings
-            self.enable_email = alert_config.enable_email
-            self.critical_only = alert_config.critical_only
             
             # Update deduplication window
             self.dedup_window_minutes = alert_config.dedup_window_minutes
@@ -581,7 +424,7 @@ if __name__ == "__main__":
     print("=" * 30)
     
     # Create alert manager instance
-    alert_manager = AlertManager(enable_email=False)  # Disable email for testing
+    alert_manager = AlertManager()
     
     print("Alert manager initialized successfully")
     print(f"Alert statistics: {alert_manager.get_alert_statistics()}")

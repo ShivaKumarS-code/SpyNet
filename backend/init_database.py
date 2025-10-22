@@ -23,8 +23,9 @@ def main():
     try:
         # Check database connection
         print("1. Testing database connection...")
+        from sqlalchemy import text
         db = db_manager.get_session()
-        db.execute("SELECT 1")
+        db.execute(text("SELECT 1"))
         db.close()
         print("   ✅ Database connection successful")
         

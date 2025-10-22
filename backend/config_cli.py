@@ -66,8 +66,7 @@ def show_configuration_summary():
         
         print_subsection_header("Alert Settings")
         alerts = summary['alert_settings']
-        print(f"  Email Enabled: {format_value(alerts['email_enabled'])}")
-        print(f"  Email Addresses: {alerts['email_count']}")
+
         print(f"  Severity Levels: {alerts['severity_levels']}")
         
         print_subsection_header("Interface Settings")
@@ -164,7 +163,7 @@ def show_alert_configuration():
         alert_config = config_manager.get_alert_configuration()
         
         print_subsection_header("General Settings")
-        print(f"Email Enabled: {format_value(alert_config.enable_email)}")
+
         print(f"Syslog Enabled: {format_value(alert_config.enable_syslog)}")
         print(f"Webhook Enabled: {format_value(alert_config.enable_webhook)}")
         print(f"Critical Only: {format_value(alert_config.critical_only)}")
@@ -172,13 +171,7 @@ def show_alert_configuration():
         print(f"Max Alerts Per Hour: {alert_config.max_alerts_per_hour}")
         print(f"Alert Retention: {alert_config.alert_retention_days} days")
         
-        print_subsection_header("Email Settings")
-        print(f"SMTP Server: {alert_config.smtp_server}")
-        print(f"SMTP Port: {alert_config.smtp_port}")
-        print(f"SMTP Username: {alert_config.smtp_username}")
-        print(f"SMTP Password: {'***' if alert_config.smtp_password else 'Not set'}")
-        print(f"Use TLS: {format_value(alert_config.smtp_use_tls)}")
-        print(f"Alert Emails: {format_value(alert_config.alert_emails)}")
+
         
         print_subsection_header("Webhook Settings")
         print(f"Webhook URL: {alert_config.webhook_url or 'Not set'}")
@@ -207,8 +200,7 @@ def update_alert_configuration(args):
     try:
         update_params = {}
         
-        if args.enable_email is not None:
-            update_params['enable_email'] = args.enable_email
+
         if args.enable_syslog is not None:
             update_params['enable_syslog'] = args.enable_syslog
         if args.enable_webhook is not None:
@@ -221,12 +213,7 @@ def update_alert_configuration(args):
             update_params['max_alerts_per_hour'] = args.max_alerts_per_hour
         if args.alert_retention_days is not None:
             update_params['alert_retention_days'] = args.alert_retention_days
-        if args.smtp_server is not None:
-            update_params['smtp_server'] = args.smtp_server
-        if args.smtp_port is not None:
-            update_params['smtp_port'] = args.smtp_port
-        if args.smtp_username is not None:
-            update_params['smtp_username'] = args.smtp_username
+
         if args.smtp_password is not None:
             update_params['smtp_password'] = args.smtp_password
         if args.smtp_use_tls is not None:

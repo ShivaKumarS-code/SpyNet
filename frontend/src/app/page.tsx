@@ -16,7 +16,7 @@ export default function Dashboard() {
     stats, 
     topTalkers, 
     isConnected 
-  } = useWebSocket('ws://localhost:8000/ws');
+  } = useWebSocket(process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:8000');
 
   return (
     <div className={`min-h-screen transition-colors duration-200 ${

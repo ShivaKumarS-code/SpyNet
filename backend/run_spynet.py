@@ -151,7 +151,7 @@ def create_cli_parser():
 Examples:
   python run_spynet.py                         # Start with default settings
   python run_spynet.py -i eth1 --port 8080     # Custom interface and API port
-  python run_spynet.py --no-email --debug      # Disable email, enable debug mode
+  python run_spynet.py --debug                 # Enable debug mode
         """
     )
     
@@ -194,33 +194,7 @@ Examples:
         help="Anomaly detection contamination rate (default: 0.1)"
     )
     
-    # Email configuration
-    parser.add_argument(
-        "--no-email",
-        action="store_true",
-        help="Disable email notifications"
-    )
-    
-    parser.add_argument(
-        "--smtp-server",
-        help="SMTP server for email notifications"
-    )
-    
-    parser.add_argument(
-        "--smtp-username",
-        help="SMTP username for email notifications"
-    )
-    
-    parser.add_argument(
-        "--smtp-password",
-        help="SMTP password for email notifications"
-    )
-    
-    parser.add_argument(
-        "--alert-emails",
-        nargs="+",
-        help="Email addresses for alert notifications"
-    )
+
     
     # System configuration
     parser.add_argument(
@@ -271,21 +245,7 @@ def main():
     if args.anomaly_contamination:
         config["anomaly_contamination"] = args.anomaly_contamination
     
-    # Email configuration
-    if args.no_email:
-        config["enable_email"] = False
-    
-    if args.smtp_server:
-        config["smtp_server"] = args.smtp_server
-    
-    if args.smtp_username:
-        config["smtp_username"] = args.smtp_username
-    
-    if args.smtp_password:
-        config["smtp_password"] = args.smtp_password
-    
-    if args.alert_emails:
-        config["alert_emails"] = args.alert_emails
+
     
     # System configuration
     if args.log_level:

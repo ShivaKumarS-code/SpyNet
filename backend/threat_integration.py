@@ -25,7 +25,7 @@ class ThreatDetectionPipeline:
     def __init__(self, 
                  port_scan_threshold: Optional[int] = None,
                  ddos_threshold: Optional[int] = None,
-                 enable_email_alerts: bool = True,
+
                  critical_alerts_only: bool = False,
                  enable_anomaly_detection: bool = True,
                  anomaly_threshold: float = -0.5):
@@ -35,7 +35,7 @@ class ThreatDetectionPipeline:
         Args:
             port_scan_threshold: Port scan detection threshold
             ddos_threshold: DDoS detection threshold  
-            enable_email_alerts: Whether to enable email notifications
+
             critical_alerts_only: Whether to send only critical alert notifications
             enable_anomaly_detection: Whether to enable ML-based anomaly detection
             anomaly_threshold: Threshold for anomaly score classification
@@ -54,10 +54,7 @@ class ThreatDetectionPipeline:
         self.anomaly_detector = AnomalyDetector(
             anomaly_threshold=anomaly_threshold
         ) if enable_anomaly_detection else None
-        self.alert_manager = AlertManager(
-            enable_email=enable_email_alerts,
-            critical_only=critical_alerts_only
-        )
+        self.alert_manager = AlertManager()
         
         # Pipeline statistics
         self.packets_processed = 0
@@ -446,7 +443,7 @@ if __name__ == "__main__":
     pipeline = ThreatDetectionPipeline(
         port_scan_threshold=5,
         ddos_threshold=10,
-        enable_email_alerts=False
+
     )
     
     print("Pipeline initialized successfully")

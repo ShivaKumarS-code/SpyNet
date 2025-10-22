@@ -30,16 +30,20 @@ export default function TrafficChart({ data }: TrafficChartProps) {
     payload?: Array<{ value: number; color: string }>; 
     label?: string 
   }) => {
-    if (active && payload && payload.length) {
+    if (active && payload && payload.length > 0) {
       return (
         <div className="bg-white dark:bg-gray-800 p-3 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg">
           <p className="text-sm font-medium text-gray-900 dark:text-white">{`Time: ${label}`}</p>
-          <p className="text-sm text-blue-600 dark:text-blue-400">
-            {`Packets: ${payload[0].value.toLocaleString()}`}
-          </p>
-          <p className="text-sm text-green-600 dark:text-green-400">
-            {`Bytes: ${payload[1].value.toLocaleString()} KB`}
-          </p>
+          {payload[0] && (
+            <p className="text-sm text-blue-600 dark:text-blue-400">
+              {`Packets: ${payload[0].value?.toLocaleString() || 0}`}
+            </p>
+          )}
+          {payload[1] && (
+            <p className="text-sm text-green-600 dark:text-green-400">
+              {`Bytes: ${payload[1].value?.toLocaleString() || 0} KB`}
+            </p>
+          )}
         </div>
       );
     }
