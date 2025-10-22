@@ -82,31 +82,6 @@
 
 ---
 
-## 📁 Project Structure
-
-```
-📦 SpyNet/
-├── 📂 backend/                     # Python FastAPI backend
-│   ├── 📄 main.py                  # FastAPI application entry point
-│   ├── 📄 models.py                # Database models and schemas
-│   ├── 📄 packet_capture.py        # Network packet capture engine
-│   ├── 📄 threat_detector.py       # Threat detection algorithms
-│   ├── 📄 anomaly_detector.py      # ML-based anomaly detection
-│   ├── 📄 reporting.py             # Advanced reporting system
-│   ├── 📄 database.py              # Database operations
-│   ├── 📄 config.py                # Configuration management
-│   └── 📄 requirements.txt         # Python dependencies
-├── 📂 frontend/                    # Next.js dashboard
-│   ├── 📂 src/
-│   │   ├── 📂 components/          # React components
-│   │   ├── 📂 hooks/               # Custom React hooks
-│   │   └── 📂 app/                 # Next.js app router
-│   └── 📄 package.json             # Node.js dependencies
-└── 📂 .kiro/                       # Kiro IDE configuration
-    └── 📂 specs/                   # Feature specifications
-
----
-
 ## 🚀 Quick Start
 
 ### Prerequisites
@@ -213,22 +188,6 @@ API Docs: http://localhost:8000/docs
 - **Model Updates**: Automatic retraining with new traffic data
 - **False Positive Reduction**: Statistical baseline comparison
 - **Contamination Tunong**: Configurmalymaly detection sensitivity
-
-### Traditional Threat Detection
-<table>
-<tr><th>Attack Type</th><th>Detection Method</th><th>ML Enhancement</th></tr>
-<tr><td><b>Port Scanning</b></td><td>Connection pattern a>Behavioral anomaly scoring</td></tr>
-<tr><td><b>DDoS Attacks</b></td><td>Traffimonitoring<
-  - `Score < -d><td>Traffic pattern deviation</td></tr>
-<tr><td></td><td>Failed login detection</td><td>Access pattern analysis</td></tr>
-<tr><td><b>Zero-Day Attacks</b></td><td>ML anomaly detection</td><td>Isolation Forest scoring</td></tr>
-<tr><td><b>Payload Analysis</b></td><td>Deep packet inspection</td><td>Content anomaly detection</td></tr>
-</table>lysis
-- **Packet-level search** across captured traffic
-- **Connection tracking** with flow analysis  
-- **Alert correlation** and timeline reconstruction
-- **Data export** for external analysis tools
-- **Historical trend** analysis and reporting
 
 ---
 
